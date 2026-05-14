@@ -8,10 +8,10 @@
 ## 무엇을 제공하나요
 
 - 자연어 한 줄로 NCP Server(VM)를 만들고 그 위에 백엔드 코드를 배포할 수 있게 해 주는 **Claude Code Skill**
-- 모든 NCP 자원 조작은 NCP 공식 CLI(**`ncloud-cli`**)로 수행 — AWS CLI 의존 없음
+- 모든 NCP 자원 조작은 NCP 공식 CLI(**`ncloud-cli`**)로 수행
 - 자격증명·작명·안전 규칙을 미리 정의한 컨텍스트 — 매번 같은 설명을 반복할 필요가 없고, **호출 토큰도 절약**됩니다
 - (보조) Skill을 못 쓰는 환경(Claude Desktop, Cursor 등)을 위한 **프롬프트 팩** — `for-vibe-coders/`
-- (보조) 파일 저장이 추가로 필요할 때만 Object Storage 가이드 활성화
+- (보조) 파일 저장이 추가로 필요할 때 Object Storage 가이드 활성화
 
 ---
 
