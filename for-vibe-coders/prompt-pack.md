@@ -1,4 +1,4 @@
-# Prompt Pack — 바이브코더용
+# Prompt Pack — 바이브코더용 (Server 중심)
 
 > AI 에디터(Claude Desktop · Cursor · ChatGPT 등)에 그대로 복붙해서 쓰는 프롬프트 모음입니다.
 > 본 팩을 활용하면 AI가 매번 같은 것을 추론하지 않아 **토큰을 아낄 수 있고**, 결과의 일관성도 올라갑니다.
@@ -8,8 +8,9 @@
 ## 사용법
 
 1. **0. 시스템 프롬프트**를 자신의 정보로 채워 한 번만 붙입니다.
-   - Claude Desktop을 쓴다면 **Projects > 새 프로젝트 > Custom Instructions** 에 넣으면 매번 자동 적용됩니다.
-   - Cursor를 쓴다면 프로젝트 루트의 `.cursorrules` 파일에 그대로 저장하면 됩니다.
+   - Claude Desktop: **Projects > 새 프로젝트 > Custom Instructions**
+   - Cursor: 프로젝트 루트의 `.cursorrules` 파일
+   - ChatGPT(Plus): Custom GPT의 instructions 영역
 2. 이후 작업이 필요할 때마다 **1~N의 작업 프롬프트**를 골라 붙입니다.
 
 ---
@@ -17,172 +18,173 @@
 ## 0. 시스템 프롬프트 (한 번만 설정)
 
 ```
-당신은 내 프론트엔드 코드에 NAVER Cloud Platform(NCP)의 Object Storage를
-백엔드로 붙여 주는 어시스턴트입니다.
+당신은 내가 NAVER Cloud Platform(NCP)에 백엔드 서버를 만들고 운영하는 것을 도와주는 어시스턴트입니다.
 
 [지켜야 할 규칙]
-1. 절대로 Access Key / Secret Key 값을 코드에 직접 박지 않는다.
-   반드시 환경 변수 또는 .env 파일에서 읽도록 안내한다.
-2. NCP Object Storage는 AWS S3 호환이므로, AWS SDK
-   (JS: @aws-sdk/client-s3, Python: boto3)를 사용한다.
-3. 엔드포인트는 https://kr.object.ncloudstorage.com, 리전은
-   kr-standard 로 고정한다.
-4. 코드를 수정하기 전 어떤 파일을 어떻게 바꿀지 1~2줄로 먼저 설명한다.
-5. 한 번에 하나의 기능만 추가한다. 사용자가 명시적으로 요청하지 않은
-   리팩터링이나 추가 기능은 만들지 않는다.
-6. 파괴적 변경(파일 삭제, 의존성 제거 등)은 미리 확인 질문을 한다.
+1. 모든 NCP 자원 조작은 NCP 공식 CLI인 `ncloud-cli`로 수행한다.
+   aws cli 는 NCP 자원에 사용하지 않는다.
+2. 자격증명은 환경 변수(NCLOUD_ACCESS_KEY, NCLOUD_SECRET_KEY)에서 읽는다.
+   코드나 명령에 키 값을 직접 박지 않는다.
+3. 리소스 생성·삭제 전 사용자에게 한 번 더 확인을 받는다.
+4. 네트워크 자원(VPC, Subnet, ACG, Login Key)은 CLI로 자동 생성하지 않고
+   NCP 콘솔에서 사용자가 직접 만들도록 안내한다.
+5. 한 번에 하나의 단계만 진행한다. 욕심내서 여러 단계를 묶지 않는다.
+6. ncloud-cli 응답 JSON을 그대로 노출하지 말고, 핵심 필드만 표로 요약한다.
 
 [내 환경]
-- 버킷 이름: <my-bucket-name>
-- 리전: kr-standard
+- 프로젝트명: <my-project>
+- 사용할 리전: KR
 - 프론트엔드 프레임워크: <React / Next.js / Vue / 정적 HTML 중 하나>
-- 패키지 매니저: <npm / pnpm / yarn 중 하나>
+- 백엔드 후보: <Node Express / Python FastAPI / 기타>
 
 [참고할 명세]
-- NCP Object Storage 엔드포인트: https://kr.object.ncloudstorage.com
-- 인증 방식: AWS Signature V4 (accessKeyId + secretAccessKey)
-- 일반적인 사용 패턴은 다음과 같다.
+- NCP CLI 명령은 `ncloud vserver <command> --regionCode KR` 형태.
+- 서버 생성: ncloud vserver createServerInstances
+- 서버 목록: ncloud vserver getServerInstanceList
+- 공인 IP 할당: ncloud vserver createPublicIpInstance
+- 서버 반납: ncloud vserver terminateServerInstances
+- 사용자 환경 변수: NCLOUD_ACCESS_KEY, NCLOUD_SECRET_KEY, NCLOUD_API_URL
 
-  // JS 예시 (Node 또는 Vite/Next 등의 클라이언트가 아닌 서버측)
-  import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-  const s3 = new S3Client({
-    region: "kr-standard",
-    endpoint: "https://kr.object.ncloudstorage.com",
-    credentials: {
-      accessKeyId: process.env.NCP_ACCESS_KEY,
-      secretAccessKey: process.env.NCP_SECRET_KEY,
-    },
-  });
-
-브라우저에서 직접 키를 노출하면 안 되므로, 키가 필요한 호출은 반드시
-서버 라우트(예: Next.js의 /api/upload)나 별도 백엔드 함수에서
-처리하도록 설계한다.
+[작명 컨벤션]
+- 서버: <프로젝트명>-<용도> (예: mysite-api)
+- ACG: <프로젝트명>-acg-<용도>
+- Login Key: <프로젝트명>-key
 ```
 
 ---
 
-## 1. 작업: 파일 업로드 기능 추가
+## 1. 작업: 처음으로 서버 한 대 띄우기
 
 ```
-내 프론트엔드에 "파일 선택해서 NCP 버킷에 올리기" 기능을 추가해 줘.
+NCP에 백엔드 서버 한 대를 처음으로 띄우고 싶다.
+다음 정보를 차례로 안내해 줘.
 
-요구사항:
-- 사용자가 파일을 고르면 업로드 진행률을 표시한다 (0~100%).
-- 업로드가 끝나면 그 파일의 키(파일명)와 공개 URL을 화면에 보여 준다.
-- 키 값은 .env 파일에서 읽는다. .env.example 파일도 함께 만들어 줘.
-- 파일 키는 충돌 방지를 위해 `${Date.now()}-${원본파일명}` 형식을 쓴다.
-- 업로드 호출은 반드시 서버 라우트(또는 별도 백엔드 함수)에서 처리한다.
+1. 사전에 콘솔에서 만들어야 할 자원 4가지(VPC, Subnet, ACG, Login Key)의 클릭 절차.
+   - VPC CIDR, ACG 기본 인바운드 규칙(SSH 22번만)에 대한 추천 값을 함께 알려 줘.
+2. ncloud vserver getServerImageList 와 getServerProductList 로
+   Ubuntu 22.04 LTS / 마이크로(가장 저렴) 사양의 코드를 어떻게 찾아내는지.
+3. ncloud vserver createServerInstances 명령의 최종 한 줄 예시.
+   - 서버 이름은 <my-project>-api 로 한다.
 
-작업을 시작하기 전에 어떤 파일을 새로 만들고 어떤 파일을 수정할지 한 번만 알려 줘.
-```
-
----
-
-## 2. 작업: 업로드한 파일 목록 보기
-
-```
-바로 위 단계에서 만든 업로드 기능 옆에, "내가 올린 파일 목록" 영역을 추가해 줘.
-
-요구사항:
-- 페이지가 열릴 때 버킷의 객체 목록을 가져온다 (서버 라우트 경유).
-- 한 줄에 파일 이름, 업로드 시간, 크기를 보여 준다.
-- 파일 이름을 클릭하면 새 탭에서 열린다.
-- 최근에 올린 파일이 위에 오도록 정렬한다.
-
-목록을 가져올 때 페이지네이션은 일단 신경 쓰지 않아도 된다 (50개 이하 가정).
+한 단계씩 끝낼 때마다 내가 "다음"이라고 말하면 진행해 줘.
 ```
 
 ---
 
-## 3. 작업: 파일 삭제
+## 2. 작업: 공인 IP 할당 + SSH 접속
 
 ```
-파일 목록의 각 항목에 "삭제" 버튼을 달고, 누르면 NCP 버킷에서도 실제로 지워지도록 만들어 줘.
+방금 만든 서버에 공인 IP를 할당하고 SSH로 접속하고 싶다.
 
-요구사항:
-- 삭제 직전에 confirm() 또는 동등한 다이얼로그로 한 번 확인을 받는다.
-- 삭제가 성공하면 그 항목을 목록에서 즉시 제거한다.
-- 삭제 실패 시 사용자에게 원인을 알려 준다.
-```
-
----
-
-## 4. 작업: 이미지일 때 미리보기
-
-```
-업로드된 파일 중 이미지(.jpg, .jpeg, .png, .gif, .webp)인 경우,
-목록에 작은 썸네일을 같이 표시해 줘.
-
-요구사항:
-- 이미지가 아닌 파일은 기존처럼 텍스트 줄만 표시한다.
-- 썸네일은 가로 80px, 비율 유지.
-- 클릭하면 원본을 새 탭에서 연다.
+1. ncloud vserver createPublicIpInstance 명령 예시.
+2. Login Key(.pem) 파일에 권한 적용하는 chmod 명령.
+3. ssh -i ... ubuntu@<공인IP> 명령 예시.
+4. 접속 실패 시 점검 순서(ACG 22번 포트, pem 권한, 공인 IP 상태).
 ```
 
 ---
 
-## 5. 작업: 공개/비공개 전환
+## 3. 작업: 백엔드 코드 배포 (Node Express)
 
 ```
-업로드한 파일의 공개/비공개 상태를 토글할 수 있게 해 줘.
+서버에 Node Express 백엔드를 배포하고 싶다.
+- 코드는 내 GitHub 레포에 있다고 가정한다.
+- 프로세스 매니저로 pm2 를 사용한다.
+- 포트는 3000번을 사용한다.
 
-요구사항:
-- 각 항목에 "공개" / "비공개" 상태를 보여 준다.
-- 토글 버튼을 누르면 ACL을 public-read / private 로 바꾼다.
-- 공개 상태일 때만 직접 접근 URL을 보여 준다.
-- 비공개일 때는 "다운로드" 버튼을 통해 임시 서명 URL(presigned URL, 5분 유효)을 생성해서 연다.
-```
+다음을 안내해 줘.
+1. VM 안에서 Node/npm/git 설치하는 명령.
+2. 레포 클론 → 의존성 설치 → pm2 로 백그라운드 실행하는 명령.
+3. 재부팅 후 자동 시작되도록 pm2 startup 설정.
+4. ACG에 3000번 포트 인바운드 규칙을 추가하는 절차(콘솔에서 클릭으로).
+5. 외부에서 curl http://<공인IP>:3000/ 으로 동작 확인하는 명령.
 
----
-
-## 6. 작업: 비용·사용량 안내 컴포넌트
-
-```
-사이트 어딘가에 "현재 버킷 사용량" 위젯을 추가해 줘.
-
-요구사항:
-- 객체 개수와 총 용량(MB)을 보여 준다.
-- 30초마다 자동 새로고침되거나, 사용자가 새로고침 버튼을 누르면 갱신된다.
-- 일정 크기를 넘으면 (예: 500MB) 노란색 경고로 표시한다.
+한 단계씩 끝나면 내가 "다음"이라고 말한다.
 ```
 
 ---
 
-## 7. 작업: 에러 핸들링 일괄 강화
+## 4. 작업: 프론트엔드에 백엔드 URL 연결
 
 ```
-지금까지 추가한 NCP 관련 호출들에 대해 에러 핸들링을 한꺼번에 정리해 줘.
+프론트엔드 코드(<프레임워크>)에서 방금 띄운 백엔드를 호출하고 싶다.
 
-요구사항:
-- 네트워크 오류와 권한 오류(403)를 구분해서 사용자에게 다른 안내를 한다.
-- 권한 오류일 때는 ".env의 키 값이 맞는지 확인하세요"라는 문구를 띄운다.
-- 코드 수정 전, 어떤 파일들을 어떻게 바꿀지 한 번만 요약한다.
+1. 환경 변수로 백엔드 URL을 받는 패턴(.env, .env.local 등).
+2. fetch / axios 호출 예시 코드.
+3. CORS 이슈가 났을 때 백엔드(Express)에 cors 미들웨어를 추가하는 한 줄 코드.
+4. 운영 환경에서 백엔드 URL을 HTTPS 로 바꿔야 하는 이유와 다음에 무엇을 해야 하는지 한 줄 안내.
 ```
 
 ---
 
-## 부록: 트러블슈팅 프롬프트
-
-### A. 업로드는 되는데 다운로드가 안 될 때
+## 5. 작업: 비용 정리 (실습 끝낼 때)
 
 ```
-업로드는 성공하는데, 업로드된 URL로 접근하면 AccessDenied 가 뜬다.
-원인 가설을 1~3개로 정리하고, 각각을 어떻게 검증할 수 있는지 알려 줘.
-실제 코드 수정은 내가 어떤 가설이 맞는지 확인한 다음에 진행한다.
+방금 만든 서버와 공인 IP를 모두 반납하고 싶다.
+실수로 다른 자원을 건드리지 않게 주의하면서, 다음 순서로 안내해 줘.
+
+1. 어떤 자원을 반납해야 비용이 종료되는지 한 줄 요약(서버, 공인 IP).
+2. 어떤 자원을 그대로 두어도 비용이 안 드는지(VPC, Subnet, ACG, Login Key).
+3. ncloud vserver stopServerInstances → terminateServerInstances 순서의 명령.
+4. ncloud vserver deletePublicIpInstance 명령.
+5. NCP 콘솔의 Billing > 요금 현황에서 무엇을 확인해야 하는지.
+
+각 명령 실행 직전에는 내가 "확인"이라고 말한 뒤 진행해 줘.
 ```
 
-### B. 키를 .env에 넣었는데도 401/403이 날 때
+---
+
+## 부록 A: 트러블슈팅 프롬프트
+
+### A1. 서버 생성 시 Authorization 에러
 
 ```
-.env에 NCP_ACCESS_KEY와 NCP_SECRET_KEY를 넣었는데도 401/403이 발생한다.
-가장 흔한 원인 순서대로 점검 항목을 알려 줘.
-한 번에 한 가지 항목만 확인하도록, 단계별로 안내해 줘.
+ncloud vserver createServerInstances 실행 중 Authorization 에러가 났다.
+가능한 원인 순서대로 점검 항목을 알려 줘.
+하나씩 확인하도록 단계별로 안내해 줘.
 ```
 
-### C. CORS 에러
+### A2. SSH 접속 안 됨
 
 ```
-브라우저에서 NCP Object Storage로 직접 호출하니 CORS 에러가 난다.
-가장 권장되는 해결 흐름을 알려 줘. (서버 라우트 경유 vs 버킷 CORS 설정)
-내가 어떤 프레임워크를 쓰는지는 시스템 프롬프트의 [내 환경]을 참조한다.
+ssh -i <project>-key.pem ubuntu@<공인IP> 가 응답이 없다(Connection timed out).
+원인 가설을 가능성 높은 순서대로 1~4개 정리하고, 각각 어떻게 검증할 수 있는지 알려 줘.
+ACG 인바운드 규칙 확인 절차를 가장 먼저 다뤄 줘.
 ```
+
+### A3. 외부에서 앱 포트로 접근 안 됨
+
+```
+서버 안에서 curl localhost:3000 은 정상인데, 내 PC에서 curl http://<공인IP>:3000 이 응답이 없다.
+원인 가설과 점검 순서를 정리해 줘. ACG 규칙과 0.0.0.0 바인딩 여부를 가장 먼저 다뤄 줘.
+```
+
+---
+
+## 부록 B: (선택) Object Storage가 추가로 필요할 때
+
+서버에 파일 업로드 기능을 붙이고 싶을 때만 사용합니다.
+
+### B1. 버킷 만들기
+
+```
+NCP Object Storage에 새 버킷을 만들고 싶다.
+버킷 관리는 ncloud objectstorageservice 명령을 사용한다.
+다음을 안내해 줘.
+1. ncloud objectstorageservice createBucket 명령 예시(버킷명: <project>-uploads-<random>).
+2. ncloud objectstorageservice getBucketList 로 확인.
+3. 콘솔에서 같은 버킷이 보이는지 안내.
+```
+
+### B2. 백엔드 코드에 업로드 라우트 추가
+
+```
+내 Express 백엔드에 파일 업로드 라우트를 추가하고 싶다.
+- NCP Object Storage는 S3 호환이라 코드에서는 @aws-sdk/client-s3 를 사용한다(NCP 공식 권장 방식).
+- 키 값은 .env(NCLOUD_ACCESS_KEY, NCLOUD_SECRET_KEY, NCP_BUCKET, NCP_OBJECT_STORAGE_ENDPOINT)에서 읽는다.
+- 엔드포인트는 https://kr.object.ncloudstorage.com 로 고정.
+
+코드와 .env.example 을 함께 보여 줘.
+```
+
+> NCP가 공식 문서에서 권장하는 방식이므로 "AWS SDK 사용"이 어색하게 들릴 수 있어도 문제 없습니다. AWS 계정과는 무관합니다.
